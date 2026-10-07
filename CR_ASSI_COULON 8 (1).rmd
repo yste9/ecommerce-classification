@@ -1,0 +1,893 @@
+---
+title: "projet classification"
+output:
+  pdf_document: default
+  word_document: default
+---
+
+Chargement des library pour executer les fonctions
+```{r}
+library(readxl)
+library(dplyr)
+library(tidyr)
+library(stringr)
+library(ggplot2)
+library(sf)
+library(viridis)
+library(recipes)
+library(themis)
+library(MASS)
+```
+
+
+#Importation de la base e-commerce que l'on nomme achat 
+```{r}
+achat <- read.csv("C:/Users/YannickASSI/OneDrive - STARTUM CFA/Bureau/CoursClassification&Regression/Projet_ECommerce/e-commerce/online_shoppers_intention.csv")
+#View(achat)
+summary(achat)
+summary(is.na(achat))
+
+```
+Il faut modifier le type des variables Month, VisitorType et Weekdend qui sont actuellement de types character et logical. 
+Par ailleurs, nous ne remarquons aucune valeur manquante dans cette table. 
+De plus, on peut noter une répartition des valeurs de la variable Revenue (valeurs TRUE/FALSE) à 85% de FALSE (l'utilisateur ne conclut pas d'achat) et 15% de TRUE (l'utilisateur conclut sur un achat)
+
+#Transformation des variables Qualitatives en Quantitatives
+
+```{r}
+achat <- achat %>%
+  mutate(Month = str_replace(Month, "Jan", "1")) %>%
+  mutate(Month = str_replace(Month, "Feb", "2")) %>%
+  mutate(Month = str_replace(Month, "Mar", "3")) %>%
+  mutate(Month = str_replace(Month, "Apr", "4")) %>%
+  mutate(Month = str_replace(Month, "May", "5")) %>%
+  mutate(Month = str_replace(Month, "June", "6")) %>%
+  mutate(Month = str_replace(Month, "Jul", "7")) %>%
+  mutate(Month = str_replace(Month, "Aug", "8")) %>%
+  mutate(Month = str_replace(Month, "Sep", "9")) %>%
+  mutate(Month = str_replace(Month, "Oct", "10")) %>%
+  mutate(Month = str_replace(Month, "Nov", "11")) %>%
+  mutate(Month = str_replace(Month, "Dec", "12")) 
+achat$Month <- as.numeric(achat$Month)
+```
+
+
+```{r}
+achat <- achat %>%
+  mutate(VisitorType = str_replace(VisitorType, "Returning_Visitor", "1")) %>%
+  mutate(VisitorType = str_replace(VisitorType, "New_Visitor", "2")) %>%
+  mutate(VisitorType = str_replace(VisitorType, "Other", "0")) 
+achat$VisitorType<-as.numeric(achat$VisitorType)
+```
+
+
+```{r}
+achat <- achat %>%
+  mutate(Weekend = str_replace(Weekend, "TRUE", "1")) %>%
+  mutate(Weekend = str_replace(Weekend, "FALSE", "0")) 
+achat$Weekend<-as.numeric(achat$Weekend)
+```
+
+
+```{r}
+unique(achat$Month)
+unique(achat$VisitorType)
+unique(achat$Weekend)
+summary(achat)
+```
+La variable mois est désormais numérique et prend les valeurs de 1 à 12 en cohérence avec les mois de janvier à décembre; la variable type de visiteur prend désormais les valeurs 1 pour un visiteur récurrent, 2 pour un nouveau visiteur et 0 pour un autre type de visiteur; la variable weekend prend désormais la valeur 1 si l'achat est réalisé un weekend, 0 sinon. 
+
+ANALYSES DES STATISTIQUES UNI/BI VARIEES
+
+```{r}
+
+boxplot(achat$Administrative_Duration)
+boxplot(achat$Informational_Duration)
+boxplot(achat$ProductRelated_Duration)
+boxplot(achat$BounceRates)
+boxplot(achat$PageValues)
+boxplot(achat$SpecialDay)
+boxplot(achat$Month)
+boxplot(achat$OperatingSystems)
+boxplot(achat$Browser)
+boxplot(achat$Region)
+boxplot(achat$TrafficType)
+boxplot(achat$VisitorType)
+boxplot(achat$Weekend)
+```
+On observe des valeurs aberrantes sur certaines variables pour lesquelles on décide donc de supprimer les lignes si la valeur est supérieur à un certain seuil. 
+```{r}
+#achat <- achat %>%
+#  filter(Administrative_Duration <= 1500,
+#         Informational_Duration <= 1500,
+#         ProductRelated_Duration <= 2000,
+ #        BounceRates <= 0.1,
+  #       PageValues <= 150,
+   #      OperatingSystems <= 4,
+    #     TrafficType <= 8)
+
+#summary(achat)
+#length(achat[,1])
+
+```
+
+en utilisant le 99e percentile , on décide supprimer les 1% des valeurs les plus élevées, les valeurs aberantes. On garde les valeurs pour lesquelles les observations sont inférieures ou égales au seuil en question
+
+```{r}
+achat <- achat %>%
+  filter(
+    Administrative_Duration <= quantile(Administrative_Duration, 0.99),
+    Informational_Duration <= quantile(Informational_Duration, 0.99),
+    ProductRelated_Duration <= quantile(ProductRelated_Duration, 0.99),
+    BounceRates <= quantile(BounceRates, 0.99),
+    PageValues <= quantile(PageValues, 0.99),
+    OperatingSystems <= quantile(OperatingSystems, 0.99)
+  )
+
+summary(achat)
+length(achat[,1])  #Afin de voir le nombre d'observations de la nouvelle base 
+
+```
+
+
+On obtient enfin une base de données nettoyée, avec 8014 observations #11768 nouvelles Observations
+
+
+```{r}
+prop.table(table(achat$OperatingSystems, achat$Revenue), 1)
+barplot(prop.table(table(achat$OperatingSystems, achat$Revenue), 1))
+```
+
+
+```{r}
+prop.table(table(achat$Browser, achat$Revenue), 1)
+barplot(prop.table(table(achat$Browser, achat$Revenue), 1))
+```
+
+
+```{r}
+prop.table(table(achat$Region, achat$Revenue), 1)
+barplot(prop.table(table(achat$Region, achat$Revenue), 1))
+```
+
+
+```{r}
+prop.table(table(achat$TrafficType, achat$Revenue), 1)
+barplot(prop.table(table(achat$TrafficType, achat$Revenue), 1))
+```
+
+
+```{r}
+prop.table(table(achat$VisitorType, achat$Revenue), 1)
+barplot(prop.table(table(achat$VisitorType, achat$Revenue), 1))
+```
+
+
+```{r}
+prop.table(table(achat$Weekend, achat$Revenue), 1)
+barplot(prop.table(table(achat$Weekend, achat$Revenue), 1))
+
+```
+
+# Normalisation 
+
+```{r}
+normal <- achat
+num_vars<-sapply(achat,is.numeric)
+normal[, num_vars] <- scale(achat[, num_vars])
+summary(normal)
+```
+
+```{r}
+prop.table(table(normal$Revenue))
+```
+On observe toujours environ 85% de valeurs FALSE et 14% de valeurs TRUE
+
+
+# Equilibrage
+
+```{r}
+normal$Revenue <- as.factor(normal$Revenue)
+rec <- recipe(Revenue ~ ., data = normal) %>%
+   step_smote(Revenue, over_ratio = 1)
+
+data_balanced <- prep(rec) %>%
+  bake(new_data = NULL)
+```
+
+On passe ensuite à la confection des bases d'entrainement et de test. 
+Pour cela, on selectionne aléatoirement 80% des observations pour former la base d'entrainement. 
+Le reste des observations, 20%, forment la base de test. 
+80% des 11768 observations -> 9414 observations dans la base d'entrainement.
+
+# Base d'apprentissage / Test 
+
+```{r}
+nb_obs = 0.8*length(achat[,1])
+srows=sample(1:length(normal[,1]),nb_obs,replace=FALSE)
+dataTrain=normal[srows,]
+dataTest=normal[-srows,]
+summary(dataTrain)
+summary(dataTest)
+```
+
+
+#Analyse par la fonction LDA: 
+```{r}
+#fit1 = lda(dataTrain[,1:17],
+#          grouping=dataTrain[,18],
+#          prior=c(6411,1603)/8014,
+#          CV=FALSE)
+#ctrain=table(dataTrain$Revenue,predict(fit1, dataTrain[,1:17])$class)
+#ctrain
+#prop.table(ctrain, 1)
+#sum(diag(prop.table(ctrain)))
+```
+
+```{r}
+
+#dataTest$Revenue <- as.factor(dataTest$Revenue)
+#ctest=table(dataTest$Revenue, predict(fit1, dataTest[,1:17])$class)
+#ctest
+#prop.table(ctest,1)
+#sum(diag(prop.table(ctest)))
+
+```
+
+Par la méthode LDA, le modèle semble bien apprendre à partir de dataTrain puisque l'on obtient des résultats similaires sur la base de test (dataTest), il n'y a donc pas de surrapprentissage. Ce modèle est également assez proche de la réalité puisque l'on obtient une accuracy de minimum 90%.
+Un gros inconvénient est que moins de 1 vrai positif sur 2 est détecté par le modèle, tandis que la quasi totalité des vrais négatifs sont détectés. 
+
+
+#Analyse par la fonction QDA:
+```{r}
+
+#fit2=qda(dataTrain[,1:17], 
+#        grouping=dataTrain[,18],
+#        prior=c(6411,1603)/8014,
+#        cv=FALSE)
+
+#ctrain2=table(dataTrain$Revenue, predict(fit2,dataTrain[,1:17])$class)
+#ctrain2
+#prop.table(ctrain2,1)
+#sum(diag(prop.table(ctrain2)))
+
+```
+
+```{r}
+#dataTest$Revenue <- as.factor(dataTest$Revenue)
+#ctest2=table(dataTest$Revenue,predict(fit2,dataTest[,1:17])$class)
+#ctest2
+#prop.table(ctest2,1)
+#sum(diag(prop.table(ctest2)))
+```
+
+Ici, la méthode QDA semble également entrainer d'une bonne façon le modèle, sans surrapprentissage. 
+Une grande quantité des vrais négatifs sont encore une fois repérée, l'accuracy est très proche de celle obtenue par la méthode LDA (environ 90%). En revanche, les vrais positifs sont bien mieux identifiés dans ce modèle bien que le résultat reste assez faible (60%) ce qui ne nous permet pas de trouver la totalité des utilisateurs qui vont conclurent sur un achat. 
+
+
+
+# Arbre de décision 
+
+Afin d'avoir de bonnes prédiction, nous décidons de travailler sur les données d'entrainement ou d'apprentissage qui bien avant ont été normalisées. Si on travail sur toute la base normalisée, l'arbre peut mémoriser des cas rare de TRUE, on va obtenir une illusion de la performance 
+
+
+```{r}
+
+library(rpart)
+library(rpart.plot)
+
+tree_model <- rpart(
+  Revenue ~ .,
+  data = dataTrain,    # Données d'entrainement
+  method = "class",
+  control = rpart.control(
+    cp = 0.01,        # Si une coupure n'améliore pas l'indice de Gini de 1% elle est rejetée
+    minsplit = 20,  # Nombre minimum d’observations dans un nœud pour pouvoir être divisé
+    maxdepth = 5    # Correspond à la profondeur de l'arbre, type d'affichage 
+  )
+)
+
+rpart.plot(tree_model, type = 2, extra = 104, fallen.leaves = T)
+
+```
+
+#Interprêtation générale : 
+
+L’arbre de décision résalié met en évidence le rôle central de la variable PageValues dans la prédiction de l’intention d’achat. Les sessions générant une valeur faible sont majoritairement associées à une absence d’achat. Cependant, une combinaison d’un faible taux de rebond, d’un temps significatif passé sur les pages produits et d’interactions administratives accroît fortement la probabilité de conversion. La régularisation appliquée (cp = 0.01, maxdepth = 5) permet d’obtenir un modèle stable et interprétable.
+
+#Commentaire générale sur chaque étape de l'arbre  : 
+
+- Noeud 1 :
+
+On a 100% des observations.
+La classe majoritaire est FALSE (86%), avec 14% d’acheteurs (TRUE). Cela signifie que, globalement, la majorité des visiteurs ne finalisent pas un achat.
+La première variable discriminante est PageValues.
+Si la valeur de la page est faible (< -0.29), la probabilité d’achat est très faible.
+On obtient alors un noeud terminal à gauche contenant 80% des individus, avec seulement 4% d’acheteurs.
+Ce noeud est terminal car il est suffisamment pur (majorité très forte de FALSE).
+
+
+- Noeud 2 : PageValues ≥ -0.29
+
+Si la valeur de page est plus élevée, la probabilité d’achat augmente.
+On observe alors 20% des individus, avec 55% d’acheteurs.
+
+Une deuxième séparation se fait sur la variable BounceRates.
+
+-Si BounceRates < -0.46
+
+Un taux de rebond faible augmente la probabilité d’achat.
+
+On obtient un noeud terminal à droite avec 3% des individus, dont 89% d’acheteurs.
+Un taux de rebond très faible est un fort indicateur d’achat.
+
+- Noeud 3 : BounceRates ≥ -0.46
+
+Si le taux de rebond est plus élevé, l’achat reste possible mais dépend d’autres variables.
+Une nouvelle séparation intervient sur PageValues < 2.1.
+
+-Si PageValues < 0.47
+
+On observe un noeud majoritairement FALSE (88%), avec seulement 12% d’acheteurs.
+
+- Noeud 4 : Month ≥ 1.2
+
+Lorsque l’on considère le mois, certaines périodes augmentent la probabilité d’achat.
+On obtient un noeud terminal avec 6% des individus, dont 54% d’acheteurs.
+
+La période de navigation influence légèrement la décision.
+
+- Noeud 5 : ProductRelated_Duration ≥ 0.29
+
+Si l’utilisateur passe davantage de temps sur les pages produits :
+La probabilité d’achat augmente.
+On observe un noeud terminal avec 3% des individus, dont 70% d’acheteurs.
+Le temps passé sur les produits est un indicateur fort d’intention.
+
+- Noeud 6 : ExitRates ≥ -0.78
+
+Un taux de sortie faible augmente encore la probabilité d’achat.
+On obtient un noeud terminal avec 1% des individus, dont 71% d’acheteurs.
+
+Un utilisateur est fortement susceptible d’acheter si :
+Sa PageValue est élevée
+Son taux de rebond est faible
+Il passe du temps sur les pages produits
+Son taux de sortie est faible
+À l’inverse, un utilisateur avec une PageValue faible a une probabilité très faible d’achat.
+
+# Construction de la matrice de confusion sur nos données test 
+
+```{r}
+pred_tree <- predict(tree_model, dataTest, type = "class") #On décide d'appliquer l'arbre entrainé sur nos données test 
+
+conf_tree <- table(dataTest$Revenue, pred_tree) #Construction de la matrice de confusion
+
+```
+
+
+```{r}
+conf_tree # Matrice de confusion 
+```
+
+
+```{r}
+prop.table(conf_tree, 1) #Pour diviser chaque ligne par son total 
+
+sum(diag(conf_tree)) / sum(conf_tree) #Accuracy
+```
+On Obtient un taux de précision à 90% sur l'échantillon de test. 94% des nons acheteurs sont correctement détectés et 51% des acheteurs. 
+
+#Représentation Visuelle
+
+
+```{r}
+
+library(ggplot2)
+
+# Matrice de confusion -> data.frame pour ggplot
+df_conf <- as.data.frame(conf_tree)
+colnames(df_conf) <- c("Reel", "Predit", "N")
+
+# Pourcentages par classe réelle (ligne)
+df_conf <- df_conf |>
+  transform(Percent = N / ave(N, Reel, FUN = sum))
+
+# Heatmap
+ggplot(df_conf, aes(x = Predit, y = Reel, fill = N)) +
+  geom_tile(color = "white") +
+  geom_text(aes(label = paste0(N, "\n", round(Percent*100, 1), "%")), size = 4) +
+  labs(
+    title = "Matrice de confusion - Arbre de décision",
+    x = "Classe prédite",
+    y = "Classe réelle",
+    fill = "Effectif"
+  ) +
+  theme_minimal()
+
+
+```
+
+Pour Conclure , L’arbre de décision met en évidence le rôle central de la variable PageValues, qui apparaît dès les premiers niveaux de séparation. Les sessions associées à une valeur de page élevée et un temps important passé sur les pages produits présentent une probabilité significativement plus forte de conclure un achat.
+
+# SVM Linéaire 
+
+De même que l'arbre de décision,  afin d'avoir de bonnes prédiction, nous décidons de travailler sur les données d'entrainement ou d'apprentissage qui bien avant ont été normalisées
+
+```{r}
+
+library(e1071) #Package qui contient la fonction svm
+
+svm_lineaire <- svm(  # prédiction du revenue à partir de toutes les variables explicatives 
+  Revenue ~ .,
+  data = dataTrain,
+  kernel = "linear",  # Entre TRUE et FALSE le modèle cherchera une frontiere de décision linéaire 
+  cost = 1,     #choix de 1 comme standard 
+  probability = TRUE  #Nous renvoie les probabilités 
+)
+```
+
+#Prédiction sur la base de test 
+
+```{r}
+
+pred_svm_lin <- predict(svm_lineaire, dataTest)  #nous renvoie la classe prédicte pour chaque observation
+
+conf_svm_lin <- table(dataTest$Revenue, pred_svm_lin)
+conf_svm_lin  # Matrice de confusion 
+
+prop.table(conf_svm_lin, 1)
+
+accuracy_svm_lin <- sum(diag(conf_svm_lin)) / sum(conf_svm_lin)
+accuracy_svm_lin
+
+```
+# Séparation Par Classe 
+
+Test Representation 1 
+
+```{r}
+
+library(e1071)
+library(ggplot2)
+
+# 1) Revenue en factor
+dataTrain$Revenue <- as.factor(dataTrain$Revenue) # On force Revenue en factor
+
+# 2) SVM 2D linéaire
+svm_2d_lin <- svm(
+  Revenue ~ PageValues + BounceRates ,
+  data = dataTrain,      
+  kernel = "linear",
+  cost = 1,
+  scale = TRUE
+)
+
+# 3) Grille pour la zone de décision
+x_range <- range(dataTrain$BounceRates)
+y_range <- range(dataTrain$PageValues)
+
+grid <- expand.grid(
+  BounceRates = seq(x_range[1], x_range[2], length.out = 300),# On crée 300 valeurs sur l’axe BounceRates Plus 300 est grand, plus la carte est lisse 
+  PageValues  = seq(y_range[1], y_range[2], length.out = 300)  
+)
+
+# 4) Prédiction sur la grille (classe)
+grid$pred <- predict(svm_2d_lin, grid)  # Pour chaque point de la grille, le SVM dit s’il est classé TRUE ou FALSE
+
+# Support vectors
+dataTrain$SV <- FALSE  ##On crée une colonne "SV" pour marquer les support vectors
+dataTrain$SV[svm_2d_lin$index] <- TRUE  # svm_2d_rbf$index contient les indices des support vectors (points critiques). Les support vectors sont les points qui "définissent" la frontière. Plus il y en a, plus la frontière est complexe / le modèle s’appuie sur beaucoup de points.
+
+# Valeur de décision (f(x)) sur la grille
+pred_dec <- predict(svm_2d_lin, grid, decision.values = TRUE)
+grid$decision <- attr(pred_dec, "decision.values")[,1]
+
+
+# 5) Plot ggplot2 : fond + points
+ggplot() +
+  # Fond : régions de décision
+  geom_tile(data = grid,
+            aes(x = BounceRates, y = PageValues, fill = pred),
+            alpha = 0.35) +
+  
+  # Points réels
+  geom_point(data = dataTrain,
+             aes(x = BounceRates, y = PageValues, color = Revenue),
+             size = 2, alpha = 0.85) +
+  
+  # Entourer les support vectors
+  #geom_point(data = subset(dataTrain, SV),
+   #          aes(x = BounceRates, y =  PageValues),
+    #          shape = 21, size = 3.5, stroke = 1.2,
+     #         fill = NA, color = "black") +
+  
+  labs(
+    title = "SVM linéaire en 2D",
+    x = "BounceRates",
+    y = "PageValues",
+    fill = "Classe prédite",
+    color = "Classe réelle"
+  ) +
+  theme_minimal(base_size = 13) +
+   geom_contour(
+    data = grid,
+    aes(x = BounceRates, y = PageValues, z = decision),
+    breaks = 0, linewidth = 1
+  )
+
+
+```
+Interprêtation : 
+
+la linéarité de la frontière limite la capacité du modèle à capturer des interactions plus complexes entre le taux de rebond et la valeur des pages, ce qui explique la difficulté à identifier finement la classe minoritaire. Cette représentation confirme que, bien que stable, le SVM linéaire demeure moins adapté 
+
+##############################Y a t-il surapprentissage ? ##########################################
+```{r}
+
+svm_lineaire2 <- svm(  # prédiction du revenue à partir de toutes les variables explicatives 
+  Revenue ~ .,
+  data = dataTrain,
+  kernel = "linear",  # Entre TRUE et FALSE le modèle cherchera une frontiere de décision linéaire 
+  cost = 1,     #choix de 1 comme standard 
+  probability = TRUE  #Nous renvoie les probabilités 
+)
+
+pred_svm_lin2 <- predict(svm_lineaire2, dataTrain)  #nous renvoie la classe prédicte pour chaque observation
+
+conf_svm_lin2 <- table(dataTrain$Revenue, pred_svm_lin2)
+conf_svm_lin2  # Matrice de confusion 
+
+prop.table(conf_svm_lin2, 1)
+
+accuracy_svm_lin2 <- sum(diag(conf_svm_lin2)) / sum(conf_svm_lin2)
+accuracy_svm_lin2
+
+```
+
+
+```{r}
+svm_lineaire3 <- svm(  # prédiction du revenue à partir de toutes les variables explicatives 
+  Revenue ~ .,
+  data = dataTest,
+  kernel = "linear",  # Entre TRUE et FALSE le modèle cherchera une frontiere de décision linéaire 
+  cost = 1,     #choix de 1 comme standard 
+  probability = TRUE  #Nous renvoie les probabilités 
+)
+
+pred_svm_lin3 <- predict(svm_lineaire3, dataTest)  #nous renvoie la classe prédicte pour chaque observation
+
+conf_svm_lin3 <- table(dataTest$Revenue, pred_svm_lin3)
+conf_svm_lin3  # Matrice de confusion 
+
+prop.table(conf_svm_lin3, 1)
+
+accuracy_svm_lin3 <- sum(diag(conf_svm_lin3)) / sum(conf_svm_lin3)
+accuracy_svm_lin3
+
+```
+
+
+########################################################################
+
+
+
+
+#Représentation Visuelle 
+
+```{r}
+
+library(ggplot2)
+
+# Transformation de la matrice en data.frame
+df_conf_svm <- as.data.frame(conf_svm_lin)
+colnames(df_conf_svm) <- c("Classe_Reelle", "Classe_Predite", "Effectif")
+
+# Calcul des pourcentages par classe réelle (par ligne)
+df_conf_svm$Pourcentage <- df_conf_svm$Effectif /
+  ave(df_conf_svm$Effectif, df_conf_svm$Classe_Reelle, FUN = sum)
+
+# Heatmap
+ggplot(df_conf_svm, aes(x = Classe_Predite,
+                        y = Classe_Reelle,
+                        fill = Effectif)) +
+  geom_tile(color = "white") +
+  geom_text(aes(label = paste0(Effectif, "\n",
+                               round(Pourcentage*100,1), "%")),
+            size = 5) +
+  scale_fill_gradient(low = "BLUE", high = "RED") +
+  labs(
+    title = "Matrice de confusion - SVM Linéaire",
+    x = "Classe prédite",
+    y = "Classe réelle",
+    fill = "Effectif"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 14, face = "bold"),
+    axis.text = element_text(size = 12),
+    legend.position = "right"
+  )
+
+
+
+```
+
+
+On remarque que 97% des non-acheteurs sont bien détectés 
+
+Le SVM linéaire obtient une accuracy de 90% sur l’échantillon de test. Il identifie correctement 98% des non-acheteurs, mais ne détecte que 40.7% des acheteurs. Cette difficulté à capter la classe minoritaire suggère que la séparation entre acheteurs et non-acheteurs n’est pas strictement linéaire, ce qui motive l’utilisation d’un SVM non linéaire (kernel radial) afin de mieux modéliser les relations complexes. Regardons le SVM non linéaires : 
+
+#SVM Non Linéaire 
+
+On fait de même pour le SVM non linéaire 
+
+```{r}
+library(e1071)
+
+dataTrain$SV <- NULL  
+
+svm_nonLi <- svm(
+  Revenue ~ .,
+  data = dataTrain,
+  kernel = "radial",
+  cost = 10,    # On souhaite être plus rigoureux que le SVM linéaire malgré le risque de surapprentissage
+  gamma = 0.1,  #Compromis faible 
+  probability = TRUE
+)
+#svm_nonLi
+```
+
+# Prédiction SVM NON LINEAIRE sur la base de test 
+
+```{r}
+pred_svm_nl <- predict(svm_nonLi, dataTest)
+
+conf_svm_nl <- table(dataTest$Revenue, pred_svm_nl)
+conf_svm_nl
+
+prop.table(conf_svm_nl, 1)
+sum(diag(conf_svm_nl)) / sum(conf_svm_nl)
+```
+# Représentation Séparation par Classe 
+
+```{r}
+
+# Revenue en factor
+dataTrain$Revenue <- as.factor(dataTrain$Revenue) # On force Revenue en "factor" car svm() en classification attend une variable qualitative (classe). Si Revenue est logique (TRUE/FALSE) ou numérique, R peut mal interpréter le problème.
+
+dataTest$Revenue  <- as.factor(dataTest$Revenue) # Pareil 
+
+svm_2d_rbf <- svm(
+  Revenue ~ PageValues + BounceRates, # Choix de deux pour expliquer ou prédire le revenue 
+  data = dataTrain,
+  kernel = "radial",
+  cost = 10,   # Plus le coût est élevé plus l'évaluuation est plus stricte 
+  gamma = 0.1, # Choix de 0.1 pour avoir une frontière beaucoup plus flexible 
+  scale = TRUE
+)
+
+
+x_range <- range(dataTrain$BounceRates) # Sert à définir la plage de valeurs sur l’axe X pour dessiner la zone de décision afin d'avoir le min et le max
+y_range <- range(dataTrain$PageValues)
+
+grid <- expand.grid(
+  BounceRates = seq(x_range[1], x_range[2], length.out = 400),  # On crée 400 valeurs régulièrement espacées sur l’axe BounceRates Plus 400 est grand, plus la carte est lisse
+  PageValues  = seq(y_range[1], y_range[2], length.out = 400)
+)  #De même pour l'axe y ; On aura au final 400*400 points suffisantes
+
+# Classe prédite sur la grille
+grid$pred <- predict(svm_2d_rbf, grid) # Pour chaque point de la grille, le SVM dit s’il est classé TRUE ou FALSE
+
+
+dataTrain$SV <- FALSE ##On crée une colonne "SV" pour marquer les support vectors
+dataTrain$SV[svm_2d_rbf$index] <- TRUE # svm_2d_rbf$index contient les indices des support vectors (points critiques). Les support vectors sont les points qui "définissent" la frontière. Plus il y en a, plus la frontière est complexe / le modèle s’appuie sur beaucoup de points.
+
+# Valeur de décision (f(x)) sur la grille
+pred_dec <- predict(svm_2d_rbf, grid, decision.values = TRUE)
+grid$decision <- attr(pred_dec, "decision.values")[,1]
+
+
+ggplot() +
+  # Fond : régions de décision
+  geom_tile(
+    data = grid,
+    aes(x = BounceRates, y = PageValues, fill = pred),
+    alpha = 0.35  #Paramètre qui sert a controller la transparence des points
+  ) +
+  
+  # Points réels
+  geom_point(
+    data = dataTrain,
+    aes(x = BounceRates, y = PageValues, color = Revenue),  #Color = Revenu , couleur selon le revenu 
+    size = 2, alpha = 0.85
+  ) +
+  
+  # Support vectors entourés
+ # geom_point(
+ #   data = subset(dataTrain, SV),
+  #  aes(x = BounceRates, y = PageValues),
+   # shape = 21, size = 3.6, stroke = 1.2,
+    #fill = NA, color = "black"
+  #) 
+  
+  
+  labs(
+    title = "SVM non linéaire 2D",
+    x = "BounceRates",
+    y = "PageValues",
+    fill = "Classe prédite",
+    color = "Classe réelle"
+  ) +
+  theme_minimal(base_size = 13)+ geom_contour(
+    data = grid,
+    aes(x = BounceRates, y = PageValues, z = decision),
+    breaks = 0, linewidth = 1
+  )
+
+
+
+
+
+
+
+```
+
+
+
+################################Y a t il surapprentissage ? ########################################
+
+```{r}
+
+svm_nonLi2 <- svm(
+  Revenue ~ .,
+  data = dataTest,
+  kernel = "radial",
+  cost = 10,    # On souhaite être plus rigoureux que le SVM linéaire malgré le risque de surapprentissage
+  gamma = 0.1,  #Compromis faible 
+  probability = TRUE
+)
+
+pred_svm_nl2 <- predict(svm_nonLi2, dataTest)
+
+conf_svm_nl2 <- table(dataTest$Revenue, pred_svm_nl)
+conf_svm_nl2
+
+prop.table(conf_svm_nl2, 1)
+sum(diag(conf_svm_nl2)) / sum(conf_svm_nl2)
+
+```
+
+```{r}
+
+svm_nonLi3 <- svm(
+  Revenue ~ .,
+  data = dataTrain,
+  kernel = "radial",
+  cost = 10,    # On souhaite être plus rigoureux que le SVM linéaire malgré le risque de surapprentissage
+  gamma = 0.1,  #Compromis faible 
+  probability = TRUE
+)
+
+pred_svm_nl3 <- predict(svm_nonLi2, dataTrain)
+
+conf_svm_nl3 <- table(dataTrain$Revenue, pred_svm_nl3)
+conf_svm_nl3
+
+prop.table(conf_svm_nl3, 1)
+sum(diag(conf_svm_nl3)) / sum(conf_svm_nl3)
+
+```
+#########################################################################
+
+
+
+#Représentation Visuelle 
+
+
+```{r}
+
+library(ggplot2)
+
+df_conf_rbf <- as.data.frame(conf_svm_nl)
+colnames(df_conf_rbf) <- c("Classe_Reelle", "Classe_Predite", "Effectif")
+
+# Pourcentage par classe réelle (ligne)
+df_conf_rbf$Pourcentage <- df_conf_rbf$Effectif /
+  ave(df_conf_rbf$Effectif, df_conf_rbf$Classe_Reelle, FUN = sum)
+
+ggplot(df_conf_rbf, aes(x = Classe_Predite, y = Classe_Reelle, fill = Effectif)) +
+  geom_tile(color = "white") +
+  geom_text(aes(label = paste0(Effectif, "\n", round(Pourcentage*100, 1), "%")),
+            size = 5) +
+  labs(
+    title = "Matrice de confusion - SVM non linéaire",
+    x = "Classe prédite",
+    y = "Classe réelle",
+    fill = "Effectif"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 14, face = "bold"),
+    axis.text = element_text(size = 12),
+    legend.position = "right"
+  )
+
+
+```
+
+
+
+Le SVM non linéaire offre les meilleures performances globales en termes de détection des intentions d’achat, tandis que l’arbre de décision permet une interprétation claire des comportements utilisateurs. Le choix du modèle dépend donc de l’objectif : performance prédictive ou explicabilité métier.
+
+# COMPARAISON ENTRE LES MODELES ARBRE DE DECISION ET SVM LINEAIRE ET NON LINEAIRE 
+
+
+
+```{r}
+
+library(dplyr)
+
+# Fonction pour transformer une matrice en format ggplot
+prepare_conf <- function(conf_mat, model_name){
+  df <- as.data.frame(conf_mat)
+  colnames(df) <- c("Reel", "Predit", "N")
+  df$Percent <- df$N / ave(df$N, df$Reel, FUN=sum)
+  df$Modele <- model_name
+  return(df)
+}
+
+df_tree  <- prepare_conf(conf_tree, "Arbre")
+df_lin   <- prepare_conf(conf_svm_lin, "SVM Linéaire")
+df_nl   <- prepare_conf(conf_svm_nl, "SVM NL")
+
+df_all <- rbind(df_tree, df_lin, df_nl)
+
+ggplot(df_all, aes(x=Predit, y=Reel, fill=Percent)) +
+  geom_tile(color="white") +
+  geom_text(aes(label=paste0(N,"\n",round(Percent*100,1),"%")), size=3) +
+  scale_fill_gradient(low="WHITE", high="RED") +
+  facet_wrap(~Modele) +
+  labs(title="Comparaison des matrices de confusion",
+       x="Classe prédite",
+       y="Classe réelle",
+       fill="Proportion") +
+  theme_minimal()
+
+
+
+
+```
+
+La comparaison visuelle des matrices de confusion montre que l’arbre de décision offre le meilleur compromis entre détection des acheteurs et des non-acheteurs. Bien que les deux SVM présentent une excellente capacité à identifier les non-acheteurs (supérieure à 96%), leur capacité à détecter les acheteurs reste limitée (environ 50%). L’arbre de décision parvient à identifier 65% des acheteurs, ce qui constitue un avantage significatif dans un contexte e-commerce où la détection des intentions d’achat est stratégique. On voit que Le SVM non linéaire n’apporte pas d’amélioration notable par rapport au SVM linéaire, suggérant que la structure des données est suffisamment capturée par des relations quasi linéaires ou que les paramètres du noyau radial nécessiteraient un ajustement plus fin.
+
+#### Implémentation du réseau de Neurone
+
+## Test avec 20% Test, 60% Train, 20% Valid
+
+
+
+```{r}
+
+library(nnet)
+
+
+valInitWgt = 0.005
+linearOutput = FALSE
+nbNeurons = 10 
+maxLeanIter = 1000
+
+x = dataTrain[1,17]
+y = matrix(0, nr = length(dataTrain[,1]),nc = 2)
+
+rna <- nnet(x, y, size = nbNeurons, linout = linearOutput, rang = valInitWgt, maxit = maxlearnIter, decay = 0.01, Hess = TRUE)
+
+y_rna1 <- predict(rna, x)
+
+           
+           
+
+
+```
+
+
