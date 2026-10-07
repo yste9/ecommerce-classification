@@ -119,9 +119,7 @@ Ces observations décrivent des relations prédictives, sans démontrer de causa
 
 ## 📁 Documents
 
-- [Énoncé du projet](docs/enonce-projet-ecommerce.pdf)
-
-Le lien suppose que le PDF a été déposé dans le dossier `docs` sous ce nom. La présentation, les scripts R et les instructions d’exécution pourront compléter le dépôt.
+- [l’énoncé du projet](https://github.com/yste9/ecommerce-classification
 
 ## 🛠️ Compétences mobilisées
 
@@ -138,7 +136,7 @@ Le lien suppose que le PDF a été déposé dans le dossier `docs` sous ce nom. 
 
 **Yannick ASSI** et **Guillaume COULON**
 
-Université Catholique de l’Ouest — Master MIASHS
+Université Catholique de l’Ouest - Master MIASHS
 
 
 
